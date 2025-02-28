@@ -1,12 +1,13 @@
 <!--
-  SYSTEM FUNCTIONS DOCUMENTATION (v.o1)
+  Explanation of the Functions of minishell
   GitHub Markdown-Formatted
 -->
 
-# System Functions Documentation (v.o1)
-
-![Terminal Banner](https://user-images.githubusercontent.com/placeholder-terminal.png)
-<sup><sub>*Example placeholder image. Replace with your own.*</sub></sup>
+```txt
+============================================================
+=    EXPLANATION OF THE FUNCTIONS OF MINISHELL (ASCII)    =
+============================================================
+```
 
 <br />
 
@@ -40,7 +41,7 @@
 
 ## Introduction
 
-This documentation (v.o1) describes **system-level functions** in C, grouped by the libraries or headers they originate from. Each section begins with a high-level overview of the library's purpose and relevant concepts, then explains each function with **proper usage** examples and **improper usage** pitfalls. The goal is to provide a clearer understanding of low-level C programming and operating system interactions.
+This documentation (v.o1) describes **system-level functions** relevant to **minishell**, grouped by the libraries or headers they originate from. Each section begins with a high-level overview of the library's purpose and relevant concepts, then explains each function with **proper usage** examples and **improper usage** pitfalls. The goal is to provide a clearer understanding of low-level C programming and operating system interactions, specifically for a shell-like environment.
 
 ---
 
@@ -432,7 +433,7 @@ It’s each successive `struct dirent` from the directory listing.
   - Returns nonzero if it is, `0` otherwise.
 
 #### `ttyname`
-- **Description**: Returns a string naming the terminal (e.g., `/dev/pts/0`).
+- **Description**: Returns a string naming the terminal (e.g. `/dev/pts/0`).
 
 #### `ttyslot`
 - **Description**: Returns the slot number of the terminal (legacy concept).
