@@ -56,7 +56,15 @@ This documentation (v.o1) describes **system-level functions** in C, grouped by 
 ### `printf`
 
 - **Header**: `#include <stdio.h>`
-- **Description**: Prints formatted output to stdout.
+- **Description**: Prints formatted output to `stdout`.
+
+**Detailed Explanation**:
+- **Formatting**: `printf` uses format specifiers (like `%d`, `%s`) to format different data types.
+- **Return Value**: Returns the total number of characters written, or a negative value if an error occurs.
+- **Buffering**: Usually line-buffered on a terminal; flushes on newline or buffer fill.
+- **Common Mistakes**:
+  - Mismatched format specifiers (e.g., using `%d` for a `double`).
+  - Not including a newline (can lead to buffered output not appearing immediately).
 
 **Proper Usage**:
 ```c
@@ -72,7 +80,6 @@ int main(void) {
 ```c
 printf("Number: " 10); // Missing format specifier --> error
 ```
-
 **Reason**: The compiler cannot parse `(\"Number: \" 10)` correctly, causing unexpected behavior.
 
 ---
@@ -89,7 +96,13 @@ printf("Number: " 10); // Missing format specifier --> error
 
 #### `malloc`
 
+- **Header**: `#include <stdlib.h>`
 - **Description**: Dynamically allocates the requested number of bytes and returns a pointer to the allocated memory.
+- **Detailed Explanation**:
+  - **Memory Allocation**: Reserves a contiguous block of memory on the heap.
+  - **Initialization**: Contents of allocated memory are **uninitialized**.
+  - **Failure**: Returns `NULL` if allocation fails; always check.
+  - **Alignment**: Usually aligned suitably for any data type.
 
 **Proper Usage**:
 ```c
@@ -103,7 +116,12 @@ if (!arr) {
 
 #### `free`
 
+- **Header**: `#include <stdlib.h>`
 - **Description**: Frees a previously allocated memory block.
+- **Detailed Explanation**:
+  - **Ownership**: Only free memory that was allocated by `malloc`/`calloc`/`realloc`.
+  - **Double Free**: Calling `free` on the same pointer more than once leads to undefined behavior.
+  - **After Free**: The pointer becomes invalid; do not dereference.
 
 **Proper Usage**:
 ```c
@@ -119,6 +137,9 @@ free(arr); // Double free -> undefined behavior
 #### `exit`
 
 - **Description**: Terminates the current process immediately, returning a status code.
+- **Detailed Explanation**:
+  - **Cleanup**: Calls functions registered with `atexit`, flushes I/O buffers.
+  - **Exit Codes**: Conventionally `EXIT_SUCCESS (0)` means success, `EXIT_FAILURE` means error.
 
 ```c
 exit(EXIT_SUCCESS);
@@ -127,6 +148,10 @@ exit(EXIT_SUCCESS);
 #### `getenv`
 
 - **Description**: Retrieves the value of an environment variable.
+- **Detailed Explanation**:
+  - **Return**: Returns a pointer to a string in the environment list.
+  - **Mutable?**: Some implementations allow modifying environment variables via `setenv`, but `getenv` pointer shouldn’t be freed.
+  - **Usage**: Often used to get `PATH`, `HOME`, etc.
 
 ```c
 char *path = getenv("PATH");
@@ -145,18 +170,40 @@ These functions come from **`readline`** and **`history`** libraries. They provi
 
 ### `readline, rl_clear_history, rl_on_new_line, rl_replace_line, rl_redisplay, add_history`
 
-- **`readline`**: Reads a line from stdin with support for line editing.
-- **`rl_clear_history`**: Clears the in-memory command history.
-- **`rl_on_new_line`**: Tells `readline` library that the cursor is on a new line.
-- **`rl_replace_line`**: Replaces the current line in the editing buffer.
-- **`rl_redisplay`**: Redisplays the current line after changes.
-- **`add_history`**: Adds a string to the command history.
+#### `readline`
+- **Header**: `#include <readline/readline.h>`
+- **Description**: Reads a line from stdin with support for line editing.
+- **Detailed Explanation**:
+  - Provides user-friendly features like arrow key navigation, backspace, etc.
+  - Returns a **dynamically allocated** string, which should be freed by the caller.
+  - If EOF is reached, returns `NULL`.
+
+```c
+char *input = readline("myshell> ");
+if (input) {
+    // Use input
+}
+```
+
+#### `rl_clear_history`
+- **Description**: Clears the in-memory command history list.
+
+#### `rl_on_new_line`
+- **Description**: Tells readline library that the cursor is on a new line (often used after a signal).
+
+#### `rl_replace_line`
+- **Description**: Replaces the current line in the editing buffer with new text.
+
+#### `rl_redisplay`
+- **Description**: Forces readline to redisplay the current buffer.
+
+#### `add_history`
+- **Description**: Adds a string to the in-memory history.
+- **Detailed Explanation**:
+  - The string becomes part of the history; can be accessed by up/down arrows in subsequent `readline` calls.
 
 **Proper Usage**:
 ```c
-#include <readline/readline.h>
-#include <readline/history.h>
-
 char *input = readline("myshell> ");
 if (input) {
     add_history(input);
@@ -175,25 +222,43 @@ Signals are **software interrupts** sent to a process to indicate events like Ct
 
 ### `signal, sigaction, sigemptyset, sigaddset, kill`
 
-- **`signal(sig, handler)`**: Installs a simple handler function for `sig`.
-- **`sigaction`**: A more configurable way to set handlers.
-- **`sigemptyset`, `sigaddset`**: Helpers to build signal sets.
-- **`kill(pid, sig)`**: Sends a signal to a process with a given PID.
+#### `signal`
+- **Description**: Installs a simple handler function for `sig`.
+- **Detailed**:
+  - Some signals (e.g., `SIGKILL`, `SIGSTOP`) cannot be caught or ignored.
+  - `signal` is less flexible than `sigaction`.
 
-**Proper Usage**:
 ```c
-#include <signal.h>
-#include <stdio.h>
+signal(SIGINT, my_handler);
+```
 
-void my_handler(int signum) {
-    printf("Caught signal %d\n", signum);
-}
+#### `sigaction`
+- **Description**: A more configurable way to set handlers with flags, masks.
+- **Detailed**:
+  - Allows blocking other signals while the handler is running.
+  - `sa_sigaction` can be used for advanced handlers that need extra info.
 
-int main() {
-    signal(SIGINT, my_handler); // handle Ctrl+C
-    while (1) { /* loop */ }
-    return 0;
-}
+```c
+struct sigaction sa;
+sa.sa_handler = my_handler;
+sigemptyset(&sa.sa_mask);
+sa.sa_flags = 0;
+sigaction(SIGINT, &sa, NULL);
+```
+
+#### `sigemptyset`, `sigaddset`
+- **Description**: Used to build or modify signal sets.
+- **Detailed**:
+  - `sigemptyset(&set);` initializes empty set.
+  - `sigaddset(&set, SIGTERM);` adds SIGTERM to that set.
+
+#### `kill`
+- **Description**: Sends a signal to a process with given PID.
+- **Detailed**:
+  - `kill(pid, 0)` can be used to check existence/permission of a process (no actual signal is sent).
+
+```c
+kill(pid, SIGTERM);
 ```
 
 ---
@@ -208,43 +273,122 @@ These functions reside in various headers:
 
 ### `fork, wait, waitpid, wait3, wait4, execve`
 
-- **`fork()`**: Creates a new child process.
-- **`wait()`**, **`waitpid()`**: Wait for child processes to terminate.
-- **`wait3()`, `wait4()`**: Like `wait`, but provides resource usage info (CPU time, memory usage).
-- **`execve()`**: Replaces the current process with a new program.
+#### `fork`
+- **Description**: Creates a new child process.
+- **Detailed**:
+  - Returns `0` to the child, returns child PID to the parent, or `-1` on error.
+  - Child inherits file descriptors, environment, etc., but has its own PID.
 
-**What is a child process?**  
-After `fork()`, you have two processes running the same code but with different PIDs. The child inherits many attributes from the parent but can execute independently.
+```c
+pid_t pid = fork();
+if (pid == 0) {
+    // child
+} else if (pid > 0) {
+    // parent
+} else {
+    perror("fork failed");
+}
+```
+
+#### `wait`, `waitpid`
+- **Description**: Wait for a child process to terminate.
+- **Detailed**:
+  - `wait(&status);` waits for any child.
+  - `waitpid(pid, &status, 0);` waits for a specific child.
+  - Prevents zombies.
+
+#### `wait3`, `wait4`
+- **Description**: Like `wait`, but also provides **resource usage** in a `struct rusage`.
+- **Detailed**:
+  - CPU time, memory usage, etc. can be retrieved.
+
+#### `execve`
+- **Description**: Replaces the current process image with a new program.
+- **Detailed**:
+  - If successful, never returns.
+  - If fails, returns `-1` and sets `errno`.
+
+```c
+char *argv[] = {"/bin/ls", "-l", NULL};
+execve("/bin/ls", argv, envp);
+```
 
 ### `write, access, open, read, close`
 
-- **`write(fd, buf, count)`**: Writes `count` bytes from `buf` to file descriptor `fd`.
-- **`access(path, mode)`**: Checks if the process can access `path` with the given permissions.
-- **`open(path, flags, mode)`**: Opens a file, returning a file descriptor.
-- **`read(fd, buf, count)`**: Reads up to `count` bytes into `buf`.
-- **`close(fd)`**: Closes a file descriptor.
+#### `write`
+- **Description**: Writes `count` bytes from `buf` to file descriptor `fd`.
+- **Detailed**:
+  - Returns number of bytes written or `-1` on error.
+  - May write fewer bytes than requested.
+
+#### `access`
+- **Description**: Checks accessibility of a file (read, write, execute).
+- **Detailed**:
+  - Not always reliable for security checks (TOCTOU race conditions).
+
+#### `open`
+- **Description**: Opens a file and returns a file descriptor.
+- **Detailed**:
+  - Flags like `O_RDONLY`, `O_WRONLY`, `O_CREAT` control behavior.
+  - Mode is used if creating a file (e.g., `0664`).
+
+#### `read`
+- **Description**: Reads up to `count` bytes from `fd` into `buf`.
+- **Detailed**:
+  - Returns number of bytes read; `0` means EOF if reading from file.
+
+#### `close`
+- **Description**: Closes a file descriptor.
+- **Detailed**:
+  - Frees up the descriptor for reuse.
 
 ### `getcwd, chdir, stat, lstat, fstat, unlink`
 
-- **`getcwd(buf, size)`**: Gets the absolute path of the **current working directory** into `buf`.
-- **`chdir(path)`**: Changes the current working directory.
-- **`stat(path, &info)`**: Retrieves file info (follows symbolic links).
-- **`lstat(path, &info)`**: Same as `stat` but **does not** follow links.
-- **`fstat(fd, &info)`**: Gets file info from an open file descriptor.
-- **`unlink(path)`**: Removes a filesystem link (deletes file if it’s the only link).
+#### `getcwd`
+- **Description**: Gets the absolute path of the current working directory.
+- **Detailed**:
+  - Writes up to `size` bytes into `buf`.
+  - If the path is longer than `size`, `NULL` is returned.
 
-**What are symbolic links (symlinks)?**  
-A special file that “points” to another file or directory.
+#### `chdir`
+- **Description**: Changes the current working directory.
+- **Detailed**:
+  - Affects how relative paths are resolved.
+
+#### `stat`, `lstat`, `fstat`
+- **Description**: Retrieve file info (size, permissions, timestamps, etc.).
+- **Detailed**:
+  - `stat` follows symlinks, `lstat` does not.
+  - `fstat` operates on an already open file descriptor.
+
+#### `unlink`
+- **Description**: Removes a filesystem link to a file.
+- **Detailed**:
+  - If this is the last link, the file data is freed once no process holds it open.
+
+**What are symbolic links (symlinks)?**
+- A file that points to another path.
 
 ### `dup, dup2, pipe`
 
-- **`dup(fd)`**: Returns a new file descriptor referring to the same resource as `fd`.
-- **`dup2(old_fd, new_fd)`**: Closes `new_fd` if necessary and makes it refer to the same open file as `old_fd`.
-- **`pipe(pipefd)`**: Creates a unidirectional pipe (interprocess communication). `pipefd[0]` is read end, `pipefd[1]` is write end.
+#### `dup`
+- **Description**: Returns a new file descriptor referring to the same resource.
+- **Detailed**:
+  - The new descriptor is the lowest-numbered available slot.
+
+#### `dup2`
+- **Description**: Forces duplication into a chosen descriptor number.
+- **Detailed**:
+  - If `new_fd` is open, it is silently closed first.
+
+#### `pipe`
+- **Description**: Creates a unidirectional data channel.
+- **Detailed**:
+  - `pipefd[0]` is read end, `pipefd[1]` is write end.
 
 **How are `dup` and `dup2` different?**  
 - `dup` picks the lowest available descriptor.
-- `dup2` specifically reuses `new_fd`, closing it if open.
+- `dup2` specifically reuses `new_fd`.
 
 ---
 
@@ -256,12 +400,25 @@ A special file that “points” to another file or directory.
 
 ### `opendir, readdir, closedir`
 
-- **`opendir(path)`**: Opens a directory stream.
-- **`readdir(dirp)`**: Returns the **next entry** (`struct dirent`) in the directory stream.
-- **`closedir(dirp)`**: Closes the stream.
+#### `opendir`
+- **Description**: Opens a directory stream.
+- **Detailed**:
+  - Returns a pointer to a `DIR` structure if successful.
+  - `NULL` on error.
+
+#### `readdir`
+- **Description**: Returns the **next entry** (`struct dirent`) in the directory.
+- **Detailed**:
+  - Each call yields one file/subdirectory name.
+  - Returns `NULL` if no more entries.
+
+#### `closedir`
+- **Description**: Closes the directory stream.
+- **Detailed**:
+  - Frees resources associated with the `DIR*`.
 
 **What is the "next entry"?**  
-Each call to `readdir` yields the next file or subdirectory name inside that directory.
+It’s each successive `struct dirent` from the directory listing.
 
 ---
 
@@ -269,17 +426,31 @@ Each call to `readdir` yields the next file or subdirectory name inside that dir
 
 ### `isatty, ttyname, ttyslot, ioctl`
 
-- **`isatty(fd)`**: Checks if `fd` is associated with a terminal device.
-- **`ttyname(fd)`**: Returns the name (e.g. `/dev/pts/0`) of the terminal device.
-- **`ttyslot()`**: Returns the slot number of the terminal (historical usage).
-- **`ioctl(fd, request, ...)`**: Issues low-level device-specific I/O control commands.
+#### `isatty`
+- **Description**: Checks if `fd` is associated with a terminal device.
+- **Detailed**:
+  - Returns nonzero if it is, `0` otherwise.
+
+#### `ttyname`
+- **Description**: Returns a string naming the terminal (e.g., `/dev/pts/0`).
+
+#### `ttyslot`
+- **Description**: Returns the slot number of the terminal (legacy concept).
+
+#### `ioctl`
+- **Description**: Performs device-specific I/O operations.
+- **Detailed**:
+  - Called with requests like `TIOCGWINSZ` to get terminal size.
 
 **What is a terminal device?**  
-Originally, a physical device (screen+keyboard). Modern OSes emulate this via pseudo-terminals (`/dev/pts/*`).
+Originally physical; now often a pseudo-terminal (`/dev/pts/*`) in a shell.
 
 ### `tcsetattr, tcgetattr`
 
-- **Description**: Get/set the attributes of a terminal (e.g., canonical mode, echo, etc.).
+- **Description**: Get/set terminal attributes (canonical mode, echo, etc.).
+- **Detailed**:
+  - `tcgetattr(fd, &termios_p)` obtains the current settings.
+  - `tcsetattr(fd, TCSANOW, &termios_p)` updates them immediately.
 
 ```c
 #include <termios.h>
@@ -293,13 +464,25 @@ tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 
 ### `tgetent, tgetflag, tgetnum, tgetstr, tgoto, tputs`
 
-- **Termcap / curses**:
-  - `tgetent(buffer, TERM)`: Loads the capabilities for the given `TERM` type.
-  - `tgetflag(id)`: Checks for a boolean terminal capability.
-  - `tgetnum(id)`: Retrieves a numeric capability (e.g., columns).
-  - `tgetstr(id, area)`: Retrieves a string capability (e.g., clear screen sequence).
-  - `tgoto(move_str, col, row)`: Builds a cursor-movement command.
-  - `tputs(str, affcnt, putfunc)`: Outputs `str` (with padding) through `putfunc`.
+#### `tgetent`
+- **Description**: Loads terminal capability data for a given `TERM`.
+- **Detailed**:
+  - Reads from the termcap/terminfo database.
+
+#### `tgetflag`
+- **Description**: Checks a boolean capability (e.g., whether the terminal can do auto-margins).
+
+#### `tgetnum`
+- **Description**: Retrieves a numeric capability (e.g., columns count `co`).
+
+#### `tgetstr`
+- **Description**: Retrieves a string capability (e.g., clear screen `cl`).
+
+#### `tgoto`
+- **Description**: Builds a cursor-movement command from a format string.
+
+#### `tputs`
+- **Description**: Outputs a string with appropriate padding.
 
 **What is termcap?**  
 A database describing how different terminals handle capabilities (cursor movement, screen clearing, etc.). `ncurses` or `termcap` might be used to handle these.
@@ -310,8 +493,16 @@ A database describing how different terminals handle capabilities (cursor moveme
 
 ### `strerror, perror`
 
-- **`strerror(errno)`**: Returns a string describing the last error code.
-- **`perror(msg)`**: Prints `msg`, then `strerror(errno)`.
+#### `strerror`
+- **Description**: Returns a string describing the last error code in `errno`.
+- **Detailed**:
+  - The returned pointer should not be freed.
+  - This string is statically allocated or resides in a system buffer.
+
+#### `perror`
+- **Description**: Prints `msg`, then `strerror(errno)`.
+- **Detailed**:
+  - Typically used immediately after a failing syscall or library function.
 
 **Usage**:
 ```c
