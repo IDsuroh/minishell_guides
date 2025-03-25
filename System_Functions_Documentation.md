@@ -18,7 +18,7 @@
    - [printf](#printf)
 3. [Standard Library (`stdlib.h`)](#standard-library-stdlibh)
    - [malloc, free, exit, getenv](#malloc-free-exit-getenv)
-4. [Readline Functions (`readline/readline.h`, `readline/history.h`)](#readline-functions-readline/readline.h-readline/history.h))
+4. [Readline Functions (`readline/readline.h`, `readline/history.h`)](#readline-functions-readlinereadlineh-readlinehistoryh))
    - [readline, rl_clear_history, rl_on_new_line, rl_replace_line, rl_redisplay, add_history](#readline-rl_clear_history-rl_on_new_line-rl_replace_line-rl_redisplay-add_history)
 5. [Signals (`signal.h`)](#signals-signalh)
    - [signal, sigaction, sigemptyset, sigaddset, kill](#signal-sigaction-sigemptyset-sigaddset-kill)
