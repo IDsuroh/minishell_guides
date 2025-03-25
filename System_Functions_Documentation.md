@@ -742,91 +742,671 @@ int main(void) {
 - Assuming the process continues running after a successful call to `execve` (it does not).
 - Incorrectly initializing the `argv` or `envp` arrays (both must be terminated by `NULL`).
 
----
-
 **Note:**  
 Always use the appropriate macros (such as `WIFEXITED`, `WEXITSTATUS`, `WIFSIGNALED`, etc.) to interpret the exit status for all wait-family functions to ensure robust error handling and maintain program stability.
 
+
+## File I/O Functions (unistd.h, fcntl.h)
+
 ### `write, access, open, read, close`
 
-#### `write`
-- **Description**: Writes `count` bytes from `buf` to file descriptor `fd`.
-- **Detailed**:
-  - Returns number of bytes written or `-1` on error.
-  - May write fewer bytes than requested.
+## Overview
 
-#### `access`
-- **Description**: Checks accessibility of a file (read, write, execute).
-- **Detailed**:
-  - Not always reliable for security checks (TOCTOU race conditions).
-
-#### `open`
-- **Description**: Opens a file and returns a file descriptor.
-- **Detailed**:
-  - Flags like `O_RDONLY`, `O_WRONLY`, `O_CREAT` control behavior.
-  - Mode is used if creating a file (e.g., `0664`).
-
-#### `read`
-- **Description**: Reads up to `count` bytes from `fd` into `buf`.
-- **Detailed**:
-  - Returns number of bytes read; `0` means EOF if reading from file.
-
-#### `close`
-- **Description**: Closes a file descriptor.
-- **Detailed**:
-  - Frees up the descriptor for reuse.
-
-### `getcwd, chdir, stat, lstat, fstat, unlink`
-
-#### `getcwd`
-- **Description**: Gets the absolute path of the current working directory.
-- **Detailed**:
-  - Writes up to `size` bytes into `buf`.
-  - If the path is longer than `size`, `NULL` is returned.
-
-#### `chdir`
-- **Description**: Changes the current working directory.
-- **Detailed**:
-  - Affects how relative paths are resolved.
-
-#### `stat`, `lstat`, `fstat`
-- **Description**: Retrieve file info (size, permissions, timestamps, etc.).
-- **Detailed**:
-  - `stat` follows symlinks, `lstat` does not.
-  - `fstat` operates on an already open file descriptor.
-
-#### `unlink`
-- **Description**: Removes a filesystem link to a file.
-- **Detailed**:
-  - If this is the last link, the file data is freed once no process holds it open.
-
-**What are symbolic links (symlinks)?**
-- A file that points to another path.
-
-### `dup, dup2, pipe`
-
-#### `dup`
-- **Description**: Returns a new file descriptor referring to the same resource.
-- **Detailed**:
-  - The new descriptor is the lowest-numbered available slot.
-
-#### `dup2`
-- **Description**: Forces duplication into a chosen descriptor number.
-- **Detailed**:
-  - If `new_fd` is open, it is silently closed first.
-
-#### `pipe`
-- **Description**: Creates a unidirectional data channel.
-- **Detailed**:
-  - `pipefd[0]` is read end, `pipefd[1]` is write end.
-
-**How are `dup` and `dup2` different?**  
-- `dup` picks the lowest available descriptor.
-- `dup2` specifically reuses `new_fd`.
+These system-level functions facilitate low-level input/output operations, allowing direct interaction with file descriptors, checking permissions, and managing file states efficiently.
 
 ---
 
-## Directory Functions (`dirent.h`)
+## write
+
+**Header:** `#include <unistd.h>`
+
+**Description:**  
+Writes up to `count` bytes from the provided buffer (`buf`) to the given file descriptor (`fd`).
+
+**Detailed:**
+- Returns the number of bytes actually written.
+- Can return fewer bytes than requested (partial writes).
+- Returns -1 on error (sets `errno`).
+
+**Proper Usage Example:**
+
+```c
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
+
+int main(void) {
+    int fd = open("output.txt", O_WRONLY | O_CREAT, 0644);
+    if (fd == -1) {
+        perror("open failed");
+        return 1;
+    }
+
+    const char *text = "Hello, minishell!\n";
+    ssize_t written = write(fd, text, 18);
+    if (written == -1)
+        perror("write failed");
+
+    close(fd);
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Not handling partial writes (fewer bytes than requested).
+- Ignoring return values and errors.
+
+
+## access
+
+**Header:** `#include <unistd.h>`
+
+**Description:**  
+Checks whether the calling process has permissions (read/write/execute) for a file.
+
+**Detailed:**
+- Useful for preliminary checks but can introduce TOCTOU (time-of-check, time-of-use) race conditions if improperly used.
+- Returns 0 on success (permissions exist), -1 otherwise.
+
+**Proper Usage Example:**
+
+```c
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    if (access("file.txt", R_OK | W_OK) == 0)
+        printf("Read/write permissions available.\n");
+    else
+        perror("access check failed");
+
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Relying solely on `access` for security-critical operations (potential race conditions).
+- Not handling the return value and error properly.
+
+
+## open
+
+**Header:** `#include <fcntl.h>`
+
+**Description:**  
+Opens or creates a file, returning a file descriptor.
+
+**Detailed:**
+- The file descriptor allows subsequent operations (read, write, close).
+- Flags like `O_RDONLY`, `O_WRONLY`, `O_RDWR`, `O_CREAT`, `O_APPEND` control file access modes and behaviors.
+- The mode parameter sets permissions for newly created files.
+
+**Proper Usage Example:**
+
+```c
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    int fd = open("example.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd == -1) {
+        perror("open failed");
+        return 1;
+    }
+    // Use fd...
+    close(fd);
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Incorrect or missing mode parameter when using `O_CREAT`.
+- Forgetting to check for errors.
+
+
+## read
+
+**Header:** `#include <unistd.h>`
+
+**Description:**  
+Reads up to `count` bytes from a file descriptor (`fd`) into a buffer (`buf`).
+
+**Detailed:**
+- Returns the number of bytes actually read.
+- Returns 0 on EOF (end-of-file).
+- Returns -1 on error.
+
+**Proper Usage Example:**
+
+```c
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
+
+int main(void) {
+    int fd = open("example.txt", O_RDONLY);
+    if (fd == -1) {
+        perror("open failed");
+        return 1;
+    }
+
+    char buffer[100];
+    ssize_t bytes_read = read(fd, buffer, sizeof(buffer) - 1);
+    if (bytes_read == -1) {
+        perror("read failed");
+    } else if (bytes_read == 0) {
+        printf("Reached EOF.\n");
+    } else {
+        buffer[bytes_read] = '\0';
+        printf("Read %ld bytes: %s\n", bytes_read, buffer);
+    }
+
+    close(fd);
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Not handling EOF (0 bytes read) separately.
+- Assuming the buffer is null-terminated automatically.
+
+
+## close
+
+**Header:** `#include <unistd.h>`
+
+**Description:**  
+Closes an open file descriptor.
+
+**Detailed:**
+- Frees resources associated with the file descriptor.
+- Important to prevent resource leaks (running out of descriptors).
+
+**Proper Usage Example:**
+
+```c
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
+
+int main(void) {
+    int fd = open("example.txt", O_RDONLY);
+    if (fd == -1) {
+        perror("open failed");
+        return 1;
+    }
+    
+    if (close(fd) == -1)
+        perror("close failed");
+
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Not checking the return value, potentially missing errors.
+- Forgetting to close descriptors leading to leaks.
+
+---
+
+# Directory and File System Functions (unistd.h, sys/stat.h)
+
+## Overview
+
+### `getcwd, chdir, stat, lstat, fstat, unlink`
+
+These functions manage directories, handle file paths, and retrieve information about files and directories. They also manage filesystem links and the current working directory.
+
+
+## getcwd
+
+**Header:** `#include <unistd.h>`
+
+**Description:**  
+Retrieves the absolute pathname of the current working directory.
+
+**Detailed:**
+- Stores the absolute path into the provided buffer `buf` up to `size` bytes.
+- If the buffer is too small or an error occurs, returns `NULL` and sets `errno`.
+
+**Proper Usage Example:**
+
+```c
+#include <unistd.h>
+#include <stdio.h>
+#include <limits.h>
+
+int main(void) {
+    char cwd[PATH_MAX];
+
+    if (getcwd(cwd, sizeof(cwd)) == NULL) {
+        perror("getcwd failed");
+        return 1;
+    }
+
+    printf("Current working directory: %s\n", cwd);
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Providing an insufficient buffer size causing unexpected failures.
+- Ignoring the return value and error handling.
+
+
+## chdir
+
+**Header:** `#include <unistd.h>`
+
+**Description:**  
+Changes the calling process’s current working directory to the specified path.
+
+**Detailed:**
+- Alters the directory context for relative path operations.
+- Returns `0` on success; `-1` and sets `errno` on failure.
+
+**Proper Usage Example:**
+
+```c
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    if (chdir("/tmp") == -1) {
+        perror("chdir failed");
+        return 1;
+    }
+
+    printf("Directory successfully changed to /tmp\n");
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Not handling the return value, causing subsequent operations to fail silently if the directory change fails.
+
+
+## stat
+
+**Header:** `#include <sys/stat.h>`
+
+**Description:**  
+Retrieves detailed information about a file or symbolic link.
+
+**Detailed:**
+- Follows symbolic links and provides information about the file or its target.
+- Information includes file type, permissions, size, timestamps, and inode number.
+
+**Proper Usage Example:**
+
+```c
+#include <sys/stat.h>
+#include <stdio.h>
+
+int main(void) {
+    struct stat sb;
+
+    if (stat("file.txt", &sb) == -1) {
+        perror("stat failed");
+        return 1;
+    }
+
+    printf("File size: %lld bytes\n", (long long)sb.st_size);
+    printf("File permissions: %o\n", sb.st_mode & 0777);
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Misinterpreting file types by not using macros such as `S_ISREG`, `S_ISDIR`, or `S_ISLNK`.
+- Ignoring return values, which can lead to reading invalid data.
+
+
+## lstat
+
+**Header:** `#include <sys/stat.h>`
+
+**Description:**  
+Retrieves information about a file or symbolic link without following symbolic links.
+
+**Detailed:**
+- Useful for obtaining details specifically about the symlink itself rather than its target.
+
+**Proper Usage Example:**
+
+```c
+#include <sys/stat.h>
+#include <stdio.h>
+
+int main(void) {
+    struct stat sb;
+
+    if (lstat("link_to_file.txt", &sb) == -1) {
+        perror("lstat failed");
+        return 1;
+    }
+
+    if (S_ISLNK(sb.st_mode))
+        printf("It is a symbolic link.\n");
+    else
+        printf("Not a symbolic link.\n");
+
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Confusing `lstat` with `stat` when the intention is to get information about the symlink itself.
+- Ignoring the return value, potentially leading to mishandled error states.
+
+
+## fstat
+
+**Header:** `#include <sys/stat.h>`
+
+**Description:**  
+Retrieves information about a file based on an already opened file descriptor.
+
+**Detailed:**
+- Useful when a file descriptor is already open, thus avoiding additional lookups by file path.
+
+**Proper Usage Example:**
+
+```c
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    int fd = open("file.txt", O_RDONLY);
+    if (fd == -1) {
+        perror("open failed");
+        return 1;
+    }
+
+    struct stat sb;
+    if (fstat(fd, &sb) == -1) {
+        perror("fstat failed");
+        close(fd);
+        return 1;
+    }
+
+    printf("File size: %lld bytes\n", (long long)sb.st_size);
+    close(fd);
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Not checking the return value, which can result in invalid data reads.
+- Misinterpreting file type information by not using the proper macros.
+
+
+## unlink
+
+**Header:** `#include <unistd.h>`
+
+**Description:**  
+Removes a file's directory entry (link).
+
+**Detailed:**
+- Deletes the specified link from the filesystem.
+- If it is the last link and no processes have the file open, the file's data is deleted immediately. Otherwise, deletion is deferred until no processes are using it.
+
+**Proper Usage Example:**
+
+```c
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    if (unlink("old_file.txt") == -1) {
+        perror("unlink failed");
+        return 1;
+    }
+
+    printf("File successfully unlinked.\n");
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Expecting immediate file data removal even if other processes have the file open.
+- Ignoring errors such as permissions issues or missing file paths.
+
+
+## Symbolic Links (Symlinks)
+
+### What are symbolic links (symlinks)?
+
+A symbolic link (symlink) is a special file type that contains a reference to another file or directory. Symlinks provide an indirect way of accessing file resources, allowing flexibility in file system structure and organization.
+
+### Creating a Symlink
+
+You can create a symlink using the following bash command:
+
+```bash
+ln -s original_file.txt symlink_to_original.txt
+```
+
+### Checking if a File is a Symlink
+
+**Proper Usage Example (using lstat):**
+
+```c
+#include <sys/stat.h>
+#include <stdio.h>
+
+int main(void) {
+    struct stat sb;
+    if (lstat("symlink_to_original.txt", &sb) == -1) {
+        perror("lstat failed");
+        return 1;
+    }
+
+    if (S_ISLNK(sb.st_mode))
+        printf("This is a symbolic link.\n");
+    else
+        printf("This is not a symbolic link.\n");
+
+    return 0;
+}
+```
+
+## Best Practices
+
+- Always check return values and handle errors explicitly.
+- Use macros (e.g., `S_ISDIR`, `S_ISREG`, `S_ISLNK`) to accurately interpret file type information.
+- Clearly differentiate when to use `stat`, `lstat`, or `fstat` based on whether you want to follow symbolic links.
+- Manage symlinks cautiously, keeping in mind their impact on file operations and security.
+
+---
+
+# Descriptor Duplication and Pipes (unistd.h)
+
+## Overview
+
+### `dup, dup2, pipe`
+
+These functions allow processes to duplicate file descriptors and create inter-process communication channels (pipes). They are crucial in shells and programs that redirect input/output streams or facilitate communication between processes.
+
+
+## dup
+
+**Header:** `#include <unistd.h>`
+
+**Description:**  
+Creates a copy of an existing file descriptor.
+
+**Detailed:**
+- The new file descriptor references the same open file/resource as the original.
+- Returns the lowest-numbered available file descriptor.
+- Both descriptors (the original and the new one) share file offsets and status flags.
+
+**Proper Usage Example:**
+
+```c
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
+
+int main(void) {
+    int fd = open("output.txt", O_WRONLY | O_CREAT, 0644);
+    if (fd == -1) {
+        perror("open failed");
+        return 1;
+    }
+
+    int new_fd = dup(fd);
+    if (new_fd == -1) {
+        perror("dup failed");
+        close(fd);
+        return 1;
+    }
+
+    write(fd, "Hello", 5);      // Writes "Hello"
+    write(new_fd, " World", 6); // Continues writing " World"
+
+    close(fd);
+    close(new_fd);
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Not checking return values, which can cause unexpected errors.
+- Forgetting to close duplicated descriptors, leading to resource leaks.
+
+
+## dup2
+
+**Header:** `#include <unistd.h>`
+
+**Description:**  
+Duplicates a file descriptor (`old_fd`) to a specified descriptor (`new_fd`).
+
+**Detailed:**
+- If `new_fd` is already open, it is automatically closed before duplication.
+- Particularly useful for redirecting standard streams (stdin, stdout, stderr) or ensuring specific descriptor assignments.
+
+**Proper Usage Example (redirecting stdout to a file):**
+
+```c
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
+
+int main(void) {
+    int fd = open("log.txt", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd == -1) {
+        perror("open failed");
+        return 1;
+    }
+
+    if (dup2(fd, STDOUT_FILENO) == -1) {
+        perror("dup2 failed");
+        close(fd);
+        return 1;
+    }
+
+    // Now printf output goes to "log.txt"
+    printf("This will be written to log.txt\n");
+
+    close(fd); // STDOUT_FILENO remains open independently
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Not handling errors properly, especially since `dup2` implicitly closes `new_fd`.
+- Forgetting that `dup2` closes the target descriptor if it was previously open, which may lead to unintended closures.
+
+
+## Differences Between dup and dup2
+
+| Behavior / Feature       | dup                                     | dup2                                                 |
+|--------------------------|-----------------------------------------|------------------------------------------------------|
+| **Descriptor Chosen**    | Lowest-numbered available descriptor    | User-specified descriptor (`new_fd`)                 |
+| **If Descriptor Open**   | Not applicable (always picks unused one) | Closes `new_fd` if already open before duplication   |
+| **Usage Scenario**       | General duplication, descriptor backup  | Specific descriptor assignment, redirection          |
+
+- **Summary:**
+  - Use `dup` for simple descriptor duplication without specific number requirements.
+  - Use `dup2` to precisely redirect or assign descriptors, as needed in shells or for I/O redirection.
+
+
+## pipe
+
+**Header:** `#include <unistd.h>`
+
+**Description:**  
+Creates a unidirectional communication channel between processes (a pipe).
+
+**Detailed:**
+- Provides two file descriptors: one for reading (`pipefd[0]`) and one for writing (`pipefd[1]`).
+- Commonly used in IPC (inter-process communication) and shell pipelines.
+
+**Proper Usage Example (Parent-child communication):**
+
+```c
+#include <unistd.h>
+#include <stdio.h>
+#include <string.h>
+
+int main(void) {
+    int pipefd[2];
+    char buffer[20];
+
+    if (pipe(pipefd) == -1) {
+        perror("pipe failed");
+        return 1;
+    }
+
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("fork failed");
+        return 1;
+    }
+
+    if (pid == 0) {
+        // Child process: writes to pipe
+        close(pipefd[0]); // Close unused read end
+        const char *msg = "Hello from child";
+        write(pipefd[1], msg, strlen(msg));
+        close(pipefd[1]);
+        _exit(0);
+    } else {
+        // Parent process: reads from pipe
+        close(pipefd[1]); // Close unused write end
+        ssize_t bytes_read = read(pipefd[0], buffer, sizeof(buffer) - 1);
+        if (bytes_read > 0) {
+            buffer[bytes_read] = '\0';
+            printf("Parent received: %s\n", buffer);
+        }
+        close(pipefd[0]);
+    }
+
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Forgetting to close unused pipe ends, which can cause deadlocks or unintended behavior.
+- Not properly handling return values, risking data integrity and resource misuse.
+
+
+## Best Practices for dup, dup2, and pipe
+
+- Always explicitly handle errors returned by these functions.
+- Close unused file descriptors immediately to avoid leaks or deadlocks.
+- Clearly differentiate between situations requiring `dup` (simple duplication) and `dup2` (explicit descriptor management).
+- Carefully manage descriptor lifetimes when using pipes to prevent resource exhaustion and ensure proper inter-process communication.
+
+---
+
+# Directory Functions (`dirent.h`)
 
 ### Overview
 
@@ -834,118 +1414,813 @@ Always use the appropriate macros (such as `WIFEXITED`, `WEXITSTATUS`, `WIFSIGNA
 
 ### `opendir, readdir, closedir`
 
-#### `opendir`
-- **Description**: Opens a directory stream.
-- **Detailed**:
-  - Returns a pointer to a `DIR` structure if successful.
-  - `NULL` on error.
+The functions from `<dirent.h>` allow programs to read and manipulate directory entries. These functions provide an interface to explore directories entry-by-entry, typically used to list directory contents or perform operations on files/subdirectories.
 
-#### `readdir`
-- **Description**: Returns the **next entry** (`struct dirent`) in the directory.
-- **Detailed**:
-  - Each call yields one file/subdirectory name.
-  - Returns `NULL` if no more entries.
+## opendir
 
-#### `closedir`
-- **Description**: Closes the directory stream.
-- **Detailed**:
-  - Frees resources associated with the `DIR*`.
+**Header:** `#include <dirent.h>`
 
-**What is the "next entry"?**  
-It’s each successive `struct dirent` from the directory listing.
+**Description:**  
+Opens a directory stream corresponding to the directory path provided.
 
----
+**Detailed:**
+- Returns a pointer to a `DIR` structure upon successful opening.
+- Returns `NULL` on error (e.g., if the directory does not exist or there are permission issues) and sets `errno`.
 
-## Terminal & Device Functions
-
-### `isatty, ttyname, ttyslot, ioctl`
-
-#### `isatty`
-- **Description**: Checks if `fd` is associated with a terminal device.
-- **Detailed**:
-  - Returns nonzero if it is, `0` otherwise.
-
-#### `ttyname`
-- **Description**: Returns a string naming the terminal (e.g. `/dev/pts/0`).
-
-#### `ttyslot`
-- **Description**: Returns the slot number of the terminal (legacy concept).
-
-#### `ioctl`
-- **Description**: Performs device-specific I/O operations.
-- **Detailed**:
-  - Called with requests like `TIOCGWINSZ` to get terminal size.
-
-**What is a terminal device?**  
-Originally physical; now often a pseudo-terminal (`/dev/pts/*`) in a shell.
-
-### `tcsetattr, tcgetattr`
-
-- **Description**: Get/set terminal attributes (canonical mode, echo, etc.).
-- **Detailed**:
-  - `tcgetattr(fd, &termios_p)` obtains the current settings.
-  - `tcsetattr(fd, TCSANOW, &termios_p)` updates them immediately.
+**Proper Usage Example:**
 
 ```c
-#include <termios.h>
+#include <dirent.h>
+#include <stdio.h>
 
-struct termios oldt, newt;
-tcgetattr(STDIN_FILENO, &oldt);
-newt = oldt;
-newt.c_lflag &= ~(ICANON | ECHO);
-tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-```
+int main(void) {
+    DIR *dir = opendir(".");
+    if (dir == NULL) {
+        perror("opendir failed");
+        return 1;
+    }
 
-### `tgetent, tgetflag, tgetnum, tgetstr, tgoto, tputs`
-
-#### `tgetent`
-- **Description**: Loads terminal capability data for a given `TERM`.
-- **Detailed**:
-  - Reads from the termcap/terminfo database.
-
-#### `tgetflag`
-- **Description**: Checks a boolean capability (e.g., whether the terminal can do auto-margins).
-
-#### `tgetnum`
-- **Description**: Retrieves a numeric capability (e.g., columns count `co`).
-
-#### `tgetstr`
-- **Description**: Retrieves a string capability (e.g., clear screen `cl`).
-
-#### `tgoto`
-- **Description**: Builds a cursor-movement command from a format string.
-
-#### `tputs`
-- **Description**: Outputs a string with appropriate padding.
-
-**What is termcap?**  
-A database describing how different terminals handle capabilities (cursor movement, screen clearing, etc.). `ncurses` or `termcap` might be used to handle these.
-
----
-
-## Error Handling (`errno.h` and related)
-
-### `strerror, perror`
-
-#### `strerror`
-- **Description**: Returns a string describing the last error code in `errno`.
-- **Detailed**:
-  - The returned pointer should not be freed.
-  - This string is statically allocated or resides in a system buffer.
-
-#### `perror`
-- **Description**: Prints `msg`, then `strerror(errno)`.
-- **Detailed**:
-  - Typically used immediately after a failing syscall or library function.
-
-**Usage**:
-```c
-FILE *fp = fopen("nonexistent.txt", "r");
-if (!fp) {
-    perror("fopen failed");
+    printf("Directory opened successfully.\n");
+    closedir(dir);
+    return 0;
 }
 ```
 
+**Common Mistakes:**
+- Not checking the return value, which can potentially cause segmentation faults when using a `NULL` pointer.
+- Forgetting to close the directory stream, causing resource leaks.
+
+
+## readdir
+
+**Header:** `#include <dirent.h>`
+
+**Description:**  
+Reads the next entry from an opened directory stream (`DIR*`).
+
+**Detailed:**
+- Returns a pointer to a `struct dirent`, containing information like the file name (`d_name`) and inode number (`d_ino`).
+- Returns `NULL` either at the end of the directory stream or on error. Use `errno` to distinguish end-of-directory from errors.
+
+**Proper Usage Example (listing all entries in a directory):**
+
+```c
+#include <dirent.h>
+#include <stdio.h>
+
+int main(void) {
+    DIR *dir = opendir(".");
+    if (dir == NULL) {
+        perror("opendir failed");
+        return 1;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        printf("Found entry: %s\n", entry->d_name);
+    }
+
+    closedir(dir);
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Not differentiating between end-of-directory and an error condition (properly check `errno` if `readdir` returns `NULL` unexpectedly).
+- Assuming entries are sorted (they typically are not).
+
+
+## closedir
+
+**Header:** `#include <dirent.h>`
+
+**Description:**  
+Closes a directory stream previously opened by `opendir`.
+
+**Detailed:**
+- Frees the resources allocated to the `DIR*` structure.
+- Returns `0` on success, or `-1` on error, and sets `errno`.
+
+**Proper Usage Example:**
+
+```c
+#include <dirent.h>
+#include <stdio.h>
+
+int main(void) {
+    DIR *dir = opendir(".");
+    if (dir == NULL) {
+        perror("opendir failed");
+        return 1;
+    }
+
+    if (closedir(dir) == -1) {
+        perror("closedir failed");
+        return 1;
+    }
+
+    printf("Directory stream closed successfully.\n");
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Not handling potential errors from `closedir`.
+- Forgetting to call `closedir`, which leads to resource leaks.
+
+
+## What is the "next entry"?
+
+- The "next entry" is the next available `struct dirent` returned by the function `readdir` each time it is called.
+- Each call to `readdir` advances the read position in the directory stream, allowing iteration through the directory contents.
+
+### Structure: `struct dirent`
+
+```c
+struct dirent {
+    ino_t          d_ino;       // inode number
+    off_t          d_off;       // offset to the next dirent
+    unsigned short d_reclen;    // length of this record
+    unsigned char  d_type;      // type of file (e.g., regular file, directory)
+    char           d_name[256]; // filename (null-terminated)
+};
+```
+
+## Best Practices
+
+- Always handle and verify return values explicitly.
+- Clearly differentiate between errors and end-of-directory conditions by inspecting `errno` after a `NULL` return from `readdir`.
+- Close directory streams promptly after finishing operations to prevent resource leaks.
+
+---
+
+
+# Terminal & Device Functions (unistd.h, sys/ioctl.h)
+
+## Overview
+
+### `isatty, ttyname, ttyslot, ioctl`
+
+Terminal and device functions facilitate interactions with terminal devices, enabling programs to detect, query, and manage terminal-specific characteristics. These functions are essential in programs like shells or command-line tools.
+
+
+## isatty
+
+**Header:** `#include <unistd.h>`
+
+**Description:**  
+Determines if a file descriptor refers to a terminal device.
+
+**Detailed:**
+- Returns `1` (true) if the file descriptor is connected to a terminal; otherwise returns `0`.
+- Often used to check if standard input/output/error is from a terminal or redirected.
+
+**Proper Usage Example:**
+
+```c
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    if (isatty(STDOUT_FILENO))
+        printf("STDOUT is connected to a terminal.\n");
+    else
+        printf("STDOUT is not connected to a terminal.\n");
+
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Misinterpreting the return value; always explicitly check for `1` (terminal) or `0` (non-terminal).
+
+
+## ttyname
+
+**Header:** `#include <unistd.h>`
+
+**Description:**  
+Returns the pathname of the terminal associated with a file descriptor (e.g., `/dev/pts/0`).
+
+**Detailed:**
+- Useful for identifying the terminal device being used.
+- Returns `NULL` if the descriptor is not associated with a terminal or an error occurs (check `errno`).
+
+**Proper Usage Example:**
+
+```c
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    char *name = ttyname(STDIN_FILENO);
+    if (name)
+        printf("Terminal name: %s\n", name);
+    else
+        perror("ttyname failed");
+
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Not checking for `NULL`, which can lead to segmentation faults if the descriptor isn't associated with a terminal.
+
+
+## ttyslot
+
+**Header:** `#include <unistd.h>`
+
+**Description:**  
+Retrieves the slot number of the terminal as listed in the system's terminal database (historically `/etc/ttys` or `/etc/utmp`).
+
+**Detailed:**
+- Considered a legacy feature; rarely used in modern software.
+- Returns a positive slot number or `0` if not available.
+
+**Proper Usage Example (Legacy):**
+
+```c
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    int slot = ttyslot();
+    if (slot > 0)
+        printf("Terminal slot number: %d\n", slot);
+    else
+        printf("No terminal slot assigned.\n");
+
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Relying on `ttyslot` in modern systems—this function is mostly obsolete.
+
+
+## ioctl
+
+**Header:** `#include <sys/ioctl.h>`
+
+**Description:**  
+Performs device-specific input/output operations.
+
+**Detailed:**
+- Allows interaction with device drivers to retrieve or set parameters directly.
+- Frequently used with terminals for tasks like fetching terminal size (`TIOCGWINSZ`) or configuring terminal modes.
+
+**Proper Usage Example (Getting Terminal Size):**
+
+```c
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    struct winsize ws;
+
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1) {
+        perror("ioctl failed");
+        return 1;
+    }
+
+    printf("Terminal size: %d rows, %d columns\n", ws.ws_row, ws.ws_col);
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Forgetting to include `<sys/ioctl.h>` for necessary definitions.
+- Not handling the return value and errors explicitly, which could lead to undefined behavior.
+
+
+## What is a Terminal Device?
+
+Originally, terminal devices referred to physical devices (e.g., hardware terminals directly connected to a computer system). Today, most terminal interactions occur through pseudo-terminal devices (PTY), such as those in `/dev/pts/*`. These pseudo-terminals emulate physical terminals, allowing virtual terminal sessions (like SSH or terminal emulators) to communicate with processes.
+
+**Example Paths:**
+- **Physical terminal example (rare today):** `/dev/tty1`
+- **Pseudo-terminal example (common):** `/dev/pts/0`, `/dev/pts/1`, etc.
+
+
+## Best Practices
+
+- Always explicitly handle function return values and errors.
+- Be cautious when relying on legacy functions (`ttyslot`) as they might behave inconsistently across different systems.
+- Clearly document terminal-specific logic in your code to maintain clarity and portability.
+
+
+# Terminal Attribute Functions (termios.h)
+
+## Overview
+
+The functions `tcgetattr` and `tcsetattr` manage terminal attributes, allowing configuration of behaviors such as canonical mode (line-by-line input), echoing input characters, and other terminal characteristics. They are essential for customizing terminal interactions, particularly in shells and interactive programs.
+
+## tcgetattr
+
+**Header:** `#include <termios.h>`
+
+**Description:**  
+Retrieves the current attributes of the terminal associated with the provided file descriptor (`fd`).
+
+**Detailed:**
+- Populates a `struct termios` with the current terminal settings.
+- Typically used to capture current settings before making modifications so that they can later be restored.
+
+**Proper Usage Example:**
+
+```c
+#include <termios.h>
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    struct termios old_settings;
+
+    if (tcgetattr(STDIN_FILENO, &old_settings) == -1) {
+        perror("tcgetattr failed");
+        return 1;
+    }
+
+    printf("Successfully retrieved terminal attributes.\n");
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Not checking the return value, which may lead to manipulating uninitialized terminal settings.
+
+## tcsetattr
+
+**Header:** `#include <termios.h>`
+
+**Description:**  
+Sets terminal attributes for the terminal associated with the provided file descriptor (`fd`).
+
+**Detailed:**
+- Accepts flags to specify when the attributes take effect:
+  - **TCSANOW:** Changes occur immediately.
+  - **TCSADRAIN:** Changes occur after all output written to `fd` has been transmitted.
+  - **TCSAFLUSH:** Changes occur after flushing input and output queues.
+- Frequently used to modify settings such as disabling canonical mode (`ICANON`) or turning off character echo (`ECHO`).
+
+**Proper Usage Example (Disabling Canonical Mode and Echo):**
+
+```c
+#include <termios.h>
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    struct termios oldt, newt;
+
+    // Get current terminal attributes
+    if (tcgetattr(STDIN_FILENO, &oldt) == -1) {
+        perror("tcgetattr failed");
+        return 1;
+    }
+
+    newt = oldt;
+
+    // Disable canonical mode (line buffering) and echo
+    newt.c_lflag &= ~(ICANON | ECHO);
+
+    // Set modified attributes immediately
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &newt) == -1) {
+        perror("tcsetattr failed");
+        return 1;
+    }
+
+    printf("Canonical mode and echo are now OFF.\n");
+
+    // Restore original attributes before exiting
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &oldt) == -1) {
+        perror("tcsetattr restoration failed");
+        return 1;
+    }
+
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Forgetting to restore original settings, which leaves the terminal in an unusable or unexpected state after program termination.
+- Not handling return values and errors explicitly, resulting in subtle bugs or unstable terminal behavior.
+
+## Understanding Canonical Mode and Echo
+
+### Canonical Mode (`ICANON`):
+- **Enabled (default):**  
+  Input is processed line-by-line. The terminal buffers input until a newline (`\n`) or EOF character is received.
+- **Disabled:**  
+  Input is processed immediately without waiting for a newline, allowing programs to read input character-by-character. This mode is useful in interactive applications or text editors.
+
+### Echo (`ECHO`):
+- **Enabled (default):**  
+  Characters typed by the user are displayed (echoed) back to the terminal.
+- **Disabled:**  
+  Characters typed are not displayed, which is useful for sensitive inputs such as passwords.
+
+## Best Practices
+- **Save Current Settings:**  
+  Always save the current terminal attributes (using `tcgetattr`) before making changes so they can be restored later with `tcsetattr`.
+- **Error Handling:**  
+  Explicitly handle errors and return values to maintain terminal stability and ensure a consistent user experience.
+- **Document Changes:**  
+  Clearly document any changes to terminal behavior within your code, especially when disabling canonical mode or echo, to avoid confusing users.
+
+
+## Terminal Capability Functions (termcap.h)
+
+### Overview
+
+The termcap library provides a way to handle different terminal capabilities consistently across various terminal types. It allows programs to query and utilize specific capabilities such as cursor movement, screen clearing, or terminal dimensions. This approach is essential for writing portable terminal applications.
+
+## tgetent
+
+**Header:** `#include <termcap.h>`
+
+**Description:**  
+Loads terminal capability entries for a given terminal type (usually defined by the TERM environment variable).
+
+**Detailed:**
+- Reads data from the termcap (or terminfo) database.
+- **Returns:**
+  - `1` if successful,
+  - `0` if the terminal type is not found,
+  - `-1` if the termcap database cannot be accessed.
+
+**Proper Usage Example:**
+
+```c
+#include <termcap.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void) {
+    char *term_type = getenv("TERM");
+    char term_buffer[2048];
+
+    if (!term_type) {
+        fprintf(stderr, "TERM environment variable not set.\n");
+        return 1;
+    }
+
+    int success = tgetent(term_buffer, term_type);
+    if (success < 0) {
+        fprintf(stderr, "Could not access termcap database.\n");
+        return 1;
+    } else if (success == 0) {
+        fprintf(stderr, "Terminal type '%s' not found.\n", term_type);
+        return 1;
+    }
+
+    printf("Terminal type '%s' capabilities loaded successfully.\n", term_type);
+    return 0;
+}
+```
+
+## tgetflag
+
+**Header:** `#include <termcap.h>`
+
+**Description:**  
+Queries boolean terminal capabilities (e.g., auto-margin capability).
+
+**Detailed:**
+- **Returns:**
+  - `1` if the capability is available,
+  - `0` otherwise.
+
+**Proper Usage Example:**
+
+```c
+#include <termcap.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void) {
+    char term_buffer[2048];
+    char *term_type = getenv("TERM");
+    if (!term_type) {
+        fprintf(stderr, "TERM environment variable not set.\n");
+        return 1;
+    }
+    if (tgetent(term_buffer, term_type) != 1) {
+        fprintf(stderr, "tgetent failed.\n");
+        return 1;
+    }
+
+    int auto_margin = tgetflag("am");
+    if (auto_margin)
+        printf("Terminal supports automatic margins.\n");
+    else
+        printf("Terminal does NOT support automatic margins.\n");
+
+    return 0;
+}
+```
+
+## tgetnum
+
+**Header:** `#include <termcap.h>`
+
+**Description:**  
+Retrieves numeric terminal capabilities (e.g., number of columns or lines).
+
+**Detailed:**
+- **Returns:**
+  - The numeric value if the capability is found.
+  - `-1` if the capability is unavailable.
+
+**Proper Usage Example:**
+
+```c
+#include <termcap.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void) {
+    char term_buffer[2048];
+    char *term_type = getenv("TERM");
+    if (!term_type) {
+        fprintf(stderr, "TERM environment variable not set.\n");
+        return 1;
+    }
+    if (tgetent(term_buffer, term_type) != 1) {
+        fprintf(stderr, "tgetent failed.\n");
+        return 1;
+    }
+
+    int cols = tgetnum("co");
+    int rows = tgetnum("li");
+
+    if (cols != -1 && rows != -1)
+        printf("Terminal size: %d columns, %d rows\n", cols, rows);
+    else
+        printf("Terminal dimensions not available.\n");
+
+    return 0;
+}
+```
+
+## tgetstr
+
+**Header:** `#include <termcap.h>`
+
+**Description:**  
+Retrieves string-type terminal capabilities (e.g., commands to clear the screen or move the cursor).
+
+**Detailed:**
+- **Returns:**  
+  A pointer to the capability string, or `NULL` if the capability is unavailable.  
+  Capability strings often include control sequences for terminal operations.
+
+**Proper Usage Example (Clear screen):**
+
+```c
+#include <termcap.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void) {
+    char term_buffer[2048], area[2048], *ap = area;
+    char *term_type = getenv("TERM");
+    if (!term_type) {
+        fprintf(stderr, "TERM environment variable not set.\n");
+        return 1;
+    }
+    if (tgetent(term_buffer, term_type) != 1) {
+        fprintf(stderr, "tgetent failed.\n");
+        return 1;
+    }
+
+    char *clear = tgetstr("cl", &ap);
+    if (clear)
+        tputs(clear, 1, putchar);
+    else
+        printf("Clear capability not available.\n");
+
+    return 0;
+}
+```
+
+## tgoto
+
+**Header:** `#include <termcap.h>`
+
+**Description:**  
+Constructs a cursor-positioning command from a given capability string.
+
+**Detailed:**
+- Used for cursor movement operations (e.g., moving the cursor to a specific row/column).
+- Typically paired with the "cm" (cursor motion) capability.
+
+**Proper Usage Example (Move cursor):**
+
+```c
+#include <termcap.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void) {
+    char term_buffer[2048], area[2048], *ap = area;
+    char *term_type = getenv("TERM");
+    if (!term_type) {
+        fprintf(stderr, "TERM environment variable not set.\n");
+        return 1;
+    }
+    if (tgetent(term_buffer, term_type) != 1) {
+        fprintf(stderr, "tgetent failed.\n");
+        return 1;
+    }
+
+    char *cursor_move = tgetstr("cm", &ap);
+    if (!cursor_move) {
+        printf("Cursor movement capability unavailable.\n");
+        return 1;
+    }
+
+    // Move cursor to row 10, column 20
+    char *cmd = tgoto(cursor_move, 20, 10);
+    tputs(cmd, 1, putchar);
+
+    printf("Cursor moved to row 10, column 20.\n");
+    return 0;
+}
+```
+
+## tputs
+
+**Header:** `#include <termcap.h>`
+
+**Description:**  
+Outputs terminal control strings with appropriate padding.
+
+**Detailed:**
+- Handles delays and padding as required by certain terminals.
+- Commonly used to execute control sequences retrieved via `tgetstr`.
+
+**Proper Usage Example (Clear screen example from above):**
+
+```c
+#include <termcap.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+int putchar_wrapper(int c) {
+    return putchar(c);
+}
+
+int main(void) {
+    char term_buffer[2048], area[2048], *ap = area;
+    char *term_type = getenv("TERM");
+    if (!term_type) {
+        fprintf(stderr, "TERM environment variable not set.\n");
+        return 1;
+    }
+    if (tgetent(term_buffer, term_type) != 1) {
+        fprintf(stderr, "tgetent failed.\n");
+        return 1;
+    }
+
+    char *clear = tgetstr("cl", &ap);
+    if (clear)
+        tputs(clear, 1, putchar_wrapper);
+    else
+        printf("Clear capability not available.\n");
+
+    return 0;
+}
+```
+
+## What is Termcap?
+
+Termcap stands for "terminal capability." It is a database (traditionally located at `/etc/termcap`, or using terminfo in modern systems) that describes various terminal behaviors and capabilities, including:
+
+- **Cursor Movements:**  
+  Commands to move the cursor around the screen.
+- **Screen Manipulation:**  
+  Functions to clear the screen, scroll, etc.
+- **Keyboard Inputs and Control Sequences:**  
+  Definitions for how the terminal handles specific key presses.
+  
+Libraries such as ncurses or the native termcap library utilize this database to create portable, terminal-independent applications.
+
+## Best Practices
+- **Verify Capabilities:**  
+  Always verify that a terminal capability is present before using it.
+- **Error Handling:**  
+  Explicitly handle all error conditions and return values from termcap library functions.
+- **Modern Alternatives:**  
+  For new development, consider using modern alternatives like ncurses, as direct termcap usage can be complex and error-prone.
+
+---
+
+## Error Handling Functions (`errno.h`, `stdio.h`, `string.h`)
+
+### Overview
+
+Error handling in C commonly relies on the global integer `errno`, set by library functions and system calls to indicate specific errors. Functions like `strerror` and `perror` provide convenient ways to obtain human-readable error messages related to these error codes.
+
+### Functions Explained
+
+#### `strerror`
+
+- **Header**: `#include <string.h>`
+- **Description**: Converts an error number (typically from `errno`) into a descriptive, human-readable error message.
+- **Detailed**:
+  - Returns a pointer to a statically allocated string describing the error.
+  - The returned string should **not** be modified or freed by the caller.
+  - Useful when error messages need to be integrated within custom-formatted error reporting.
+
+**Proper Usage Example**:
+```c
+#include <string.h>
+#include <errno.h>
+#include <stdio.h>
+#include <fcntl.h>
+
+int main(void) {
+    int fd = open("nonexistent_file.txt", O_RDONLY);
+    if (fd == -1) {
+        printf("Failed to open file: %s\n", strerror(errno));
+    }
+    return 0;
+}
+```
+
+**Common Mistakes**:
+- Attempting to free or modify the returned pointer (can lead to undefined behavior).
+- Forgetting to include `<errno.h>` to access the global `errno` variable.
+
+#### `perror`
+
+- **Header**: `#include <stdio.h>`
+- **Description**: Prints a user-provided message followed by the error message associated with the current value of `errno`.
+- **Detailed**:
+  - Combines a descriptive message (`msg`) with `strerror(errno)` to provide clear error context.
+  - Typically called immediately after a function or system call failure.
+  - Writes output to standard error (`stderr`).
+
+**Proper Usage Example**:
+```c
+#include <stdio.h>
+
+int main(void) {
+    FILE *fp = fopen("nonexistent.txt", "r");
+    if (fp == NULL) {
+        perror("fopen failed");
+        return 1;
+    }
+
+    fclose(fp);
+    return 0;
+}
+```
+
+**Example Output**:
+```
+fopen failed: No such file or directory
+```
+
+**Common Mistakes**:
+- Calling `perror` without immediately checking the failed function, risking `errno` changing due to subsequent calls.
+- Not providing a meaningful message, thus reducing the clarity of error diagnostics.
+
+#### Understanding `errno`
+
+- **Header**: `#include <errno.h>`
+- `errno` is a thread-local global integer automatically set by many system calls and library functions when an error occurs.
+- Never manually set `errno` to `0` before a call; however, setting it to `0` explicitly before some library calls is a valid way to differentiate certain errors.
+
+**Example usage (checking errno explicitly)**:
+```c
+#include <errno.h>
+#include <stdio.h>
+#include <fcntl.h>
+
+int main(void) {
+    errno = 0; // explicitly clear errno
+    int fd = open("missing.txt", O_RDONLY);
+
+    if (fd == -1) {
+        if (errno == ENOENT)
+            printf("File does not exist.\n");
+        else
+            perror("open failed");
+    }
+
+    return 0;
+}
+```
+
+### **Best Practices**:
+- Always check the return values of system calls or library functions immediately.
+- Use `perror` for quick, straightforward error reporting directly to `stderr`.
+- Use `strerror` when custom formatting or logging of error messages is required.
+- Remember that error strings returned by `strerror` must not be freed or altered directly.
 ---
 
 ## Conclusion
