@@ -497,28 +497,258 @@ if (pid == 0) {
 }
 ```
 
-#### `wait`, `waitpid`
-- **Description**: Wait for a child process to terminate.
-- **Detailed**:
-  - `wait(&status);` waits for any child.
-  - `waitpid(pid, &status, 0);` waits for a specific child.
-  - Prevents zombies.
+# Process Management Functions Documentation
 
-#### `wait3`, `wait4`
-- **Description**: Like `wait`, but also provides **resource usage** in a `struct rusage`.
-- **Detailed**:
-  - CPU time, memory usage, etc. can be retrieved.
+This document describes various process management functions, including their headers, detailed behavior, proper usage examples, common mistakes, and a table comparing their features.
 
-#### `execve`
-- **Description**: Replaces the current process image with a new program.
-- **Detailed**:
-  - If successful, never returns.
-  - If fails, returns `-1` and sets `errno`.
+---
+
+## wait
+
+**Header:** `#include <sys/wait.h>`
+
+**Description:**  
+Waits for any child process to terminate.
+
+**Detailed:**
+- Suspends the calling process until any child process exits.
+- The child's termination status is stored in the provided status integer.
+- Helps prevent zombie processes by collecting child termination statuses.
+
+**Proper Usage Example:**
 
 ```c
-char *argv[] = {"/bin/ls", "-l", NULL};
-execve("/bin/ls", argv, envp);
+#include <sys/wait.h>
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        // Child process
+        _exit(0);
+    } else if (pid > 0) {
+        int status;
+        if (wait(&status) == -1)
+            perror("wait failed");
+        else if (WIFEXITED(status))
+            printf("Child exited with status %d\n", WEXITSTATUS(status));
+    } else {
+        perror("fork failed");
+    }
+
+    return 0;
+}
 ```
+
+**Common Mistakes:**
+- Ignoring return values.
+- Missing potential error checks.
+- Misinterpreting the status without using proper macros (e.g., `WIFEXITED`, `WEXITSTATUS`).
+
+---
+
+## waitpid
+
+**Header:** `#include <sys/wait.h>`
+
+**Description:**  
+Waits specifically for the termination of a designated child process.
+
+**Detailed:**
+- Waits for the child identified by its PID.
+- Offers additional control through flags like `WNOHANG` (non-blocking) or `WUNTRACED`.
+- Used to collect exit statuses and avoid zombies.
+
+**Proper Usage Example:**
+
+```c
+#include <sys/wait.h>
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        // Child process
+        sleep(2);
+        _exit(0);
+    } else if (pid > 0) {
+        int status;
+        if (waitpid(pid, &status, 0) == -1)
+            perror("waitpid failed");
+        else if (WIFEXITED(status))
+            printf("Child %d exited with status %d\n", pid, WEXITSTATUS(status));
+    } else {
+        perror("fork failed");
+    }
+
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Incorrect usage of flags (e.g., `WNOHANG`) causing unintended behavior.
+- Failing to handle return values and errors.
+
+---
+
+## wait3
+
+**Header:** `#include <sys/wait.h>`
+
+**Description:**  
+Similar to `wait`, waits for any child process and also provides resource usage statistics.
+
+**Detailed:**
+- Collects CPU usage, memory consumption, context switches, and more in a `struct rusage`.
+- Allows additional flags for customized waiting behavior.
+
+**Proper Usage Example:**
+
+```c
+#include <sys/wait.h>
+#include <sys/resource.h>
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        // Child process
+        sleep(1);
+        _exit(0);
+    } else if (pid > 0) {
+        int status;
+        struct rusage usage;
+        if (wait3(&status, 0, &usage) == -1) {
+            perror("wait3 failed");
+        } else if (WIFEXITED(status)) {
+            printf("Child exited with status %d\n", WEXITSTATUS(status));
+            printf("User CPU time: %ld.%06ld sec\n", usage.ru_utime.tv_sec, usage.ru_utime.tv_usec);
+            printf("System CPU time: %ld.%06ld sec\n", usage.ru_stime.tv_sec, usage.ru_stime.tv_usec);
+        }
+    } else {
+        perror("fork failed");
+    }
+
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Misinterpreting resource usage data in `struct rusage`.
+- Neglecting proper status and error checks.
+
+---
+
+## wait4
+
+**Header:** `#include <sys/wait.h>`
+
+**Description:**  
+Combines the functionalities of `waitpid` and `wait3` by waiting for a specific child process and providing detailed resource tracking.
+
+**Detailed:**
+- Waits for the designated child process based on its PID.
+- Combines specific waiting with collection of resource usage statistics via `struct rusage`.
+
+**Proper Usage Example:**
+
+```c
+#include <sys/wait.h>
+#include <sys/resource.h>
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    pid_t pid = fork();
+
+    if (pid == 0) {
+        // Child process
+        sleep(1);
+        _exit(0);
+    } else if (pid > 0) {
+        int status;
+        struct rusage usage;
+        if (wait4(pid, &status, 0, &usage) == -1) {
+            perror("wait4 failed");
+        } else if (WIFEXITED(status)) {
+            printf("Child %d exited with status %d\n", pid, WEXITSTATUS(status));
+            printf("User CPU time: %ld.%06ld sec\n", usage.ru_utime.tv_sec, usage.ru_utime.tv_usec);
+            printf("System CPU time: %ld.%06ld sec\n", usage.ru_stime.tv_sec, usage.ru_stime.tv_usec);
+        }
+    } else {
+        perror("fork failed");
+    }
+
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Incorrect handling or overlooking of resource usage statistics.
+- Confusing its usage with `waitpid` and forgetting the additional `struct rusage` parameter.
+
+---
+
+## Comparison Table
+
+| Function | Waits for         | Specific PID? | Provides Resource Usage? | Flags Supported? |
+|----------|-------------------|---------------|--------------------------|------------------|
+| wait     | Any child process | No            | No                       | No               |
+| waitpid  | Specific child    | Yes           | No                       | Yes              |
+| wait3    | Any child process | No            | Yes                      | Yes              |
+| wait4    | Specific child    | Yes           | Yes                      | Yes              |
+
+**Usage Recommendations:**
+- **Use `wait`** if simply waiting for any child without requiring additional data.
+- **Use `waitpid`** for waiting on a specific child or when non-blocking flags are needed.
+- **Use `wait3`** when retrieving resource usage statistics for any terminating child.
+- **Use `wait4`** for precise monitoring involving both process termination and resource statistics.
+
+---
+
+## execve
+
+**Header:** `#include <unistd.h>`
+
+**Description:**  
+Replaces the current running process with a new program.
+
+**Detailed:**
+- Requires an explicit file path to the new executable, along with pointers to arguments (`argv`) and an array of environment variables (`envp`).
+- On success, `execve` never returns; on failure, it returns `-1` and sets `errno`.
+
+**Proper Usage Example:**
+
+```c
+#include <unistd.h>
+#include <stdio.h>
+
+int main(void) {
+    char *argv[] = {"/bin/ls", "-l", NULL};
+    char *envp[] = {NULL};
+
+    execve("/bin/ls", argv, envp);
+
+    // Only reached if execve fails
+    perror("execve failed");
+    return 1;
+}
+```
+
+**Common Mistakes:**
+- Assuming the process continues running after a successful call to `execve` (it does not).
+- Incorrectly initializing the `argv` or `envp` arrays (both must be terminated by `NULL`).
+
+---
+
+**Note:**  
+Always use the appropriate macros (such as `WIFEXITED`, `WEXITSTATUS`, `WIFSIGNALED`, etc.) to interpret the exit status for all wait-family functions to ensure robust error handling and maintain program stability.
 
 ### `write, access, open, read, close`
 
