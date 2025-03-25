@@ -203,8 +203,6 @@ int main(void) {
 - Forgetting to free memory allocated by `readline`.
 - Not checking for NULL return value (EOF handling).
 
----
-
 #### `add_history`
 
 - **Header**: `#include <readline/history.h>`
@@ -229,8 +227,6 @@ int main(void) {
 **Common Mistakes:**
 - Adding empty or null strings to history.
 
----
-
 #### `rl_clear_history`
 
 - **Header**: `#include <readline/history.h>`
@@ -245,8 +241,6 @@ void clear_shell_history(void) {
     printf("History cleared successfully.\n");
 }
 ```
-
----
 
 #### `rl_on_new_line`
 
@@ -274,8 +268,6 @@ int main(void) {
 }
 ```
 
----
-
 #### `rl_replace_line`
 
 - **Header**: `#include <readline/readline.h>`
@@ -291,8 +283,6 @@ void replace_current_line(const char *new_line) {
 }
 ```
 
----
-
 #### `rl_redisplay`
 
 - **Header**: `#include <readline/readline.h>`
@@ -306,8 +296,6 @@ void refresh_display(void) {
     rl_redisplay();
 }
 ```
-
----
 
 **General Best Practices**:
 - Always handle memory allocation carefully (especially strings returned by `readline`).
@@ -358,21 +346,128 @@ sa.sa_flags = 0;
 sigaction(SIGINT, &sa, NULL);
 ```
 
-#### `sigemptyset`, `sigaddset`
-- **Description**: Used to build or modify signal sets.
+#### `sigemptyset`
+- **Description**: Initializes a signal set (sigset_t) to exclude all signals. Commonly used before explicitly adding signals to a set.
 - **Detailed**:
-  - `sigemptyset(&set);` initializes empty set.
-  - `sigaddset(&set, SIGTERM);` adds SIGTERM to that set.
-
-#### `kill`
-- **Description**: Sends a signal to a process with given PID.
-- **Detailed**:
-  - `kill(pid, 0)` can be used to check existence/permission of a process (no actual signal is sent).
+  - Sets the given signal set to be empty (no signals included).
+  - Essential step before manipulating signal masks using sigaddset.
 
 ```c
-kill(pid, SIGTERM);
+#include <signal.h>
+#include <stdio.h>
+
+int main(void) {
+    sigset_t set;
+
+    if (sigemptyset(&set) == -1) {
+        perror("sigemptyset failed");
+        return 1;
+    }
+
+    // Signal set is now empty; you can add signals explicitly
+    return 0;
+}
 ```
 
+**Common Mistakes**:
+Forgetting to initialize the signal set before adding signals, leading to unpredictable behavior.
+Not checking the return value for error handling.
+
+
+#### `sigaddset`
+
+- **Description**: Adds a specific signal (e.g., SIGINT, SIGTERM) to a signal set.
+- **Detailed**:
+  - Enables the addition of specific signals to a previously initialized signal set.
+  - Commonly used to block signals or specify signals in functions like sigaction.
+
+**Proper Usage Example**:
+```c
+#include <signal.h>
+#include <stdio.h>
+
+int main(void) {
+    sigset_t set;
+
+    if (sigemptyset(&set) == -1) {
+        perror("sigemptyset failed");
+        return 1;
+    }
+
+    if (sigaddset(&set, SIGTERM) == -1) {
+        perror("sigaddset failed");
+        return 1;
+    }
+
+    // SIGTERM now added to set; can be used with sigaction or sigprocmask
+    return 0;
+}
+```
+
+**Common Mistakes**:
+Not checking the return value of sigaddset, which could indicate failures (e.g., invalid signal numbers).
+Attempting to use a non-initialized set with sigaddset.
+
+#### `kill`
+- **Description**: Sends a signal to a process or group of processes specified by a process ID (PID).
+- **Detailed**:
+  - Sends a specified signal (e.g., SIGTERM, SIGKILL) to the process with the given PID.
+  - If signal is 0, no signal is sent, but the function performs error checking. It can be used to verify if the process exists and whether the caller has permission to send signals to it.
+
+**Proper Usage Example**:
+```c
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <PID>\n", argv[0]);
+        return 1;
+    }
+
+    pid_t pid = atoi(argv[1]);
+
+    if (kill(pid, SIGTERM) == -1) {
+        perror("kill failed");
+        return 1;
+    }
+
+    printf("SIGTERM successfully sent to PID %d\n", pid);
+    return 0;
+}
+```
+Checking if a Process Exists Using kill(pid, 0) Example:
+
+```c
+#include <signal.h>
+#include <stdio.h>
+
+int check_process_exists(pid_t pid) {
+    if (kill(pid, 0) == 0) {
+        printf("Process %d exists and is accessible.\n", pid);
+        return 1;
+    } else {
+        perror("kill check failed");
+        return 0;
+    }
+}
+
+int main(void) {
+    pid_t pid_to_check = 12345; // Replace with actual PID
+    check_process_exists(pid_to_check);
+    return 0;
+}
+```
+**Common Mistakes**:
+Sending inappropriate signals (e.g., using SIGKILL when a graceful termination with SIGTERM is preferred).
+Not verifying the PID is valid before sending signals.
+Misinterpreting kill(pid, 0) as sending a signal when it actually only checks process validity and permissions.
+
+**Best Practices**:
+Always properly initialize signal sets before manipulating them.
+Handle return values and errors meticulously to ensure robust code.
+Use kill(pid, 0) cautiously for checking process existence or permissions.
 ---
 
 ## Process and File Control
