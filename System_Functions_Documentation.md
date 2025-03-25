@@ -186,24 +186,156 @@ if (input) {
 }
 ```
 
-#### `rl_clear_history`
-- **Description**: Clears the in-memory command history list.
+## Readline Functions (`readline/readline.h`, `readline/history.h`)
 
-#### `rl_on_new_line`
-- **Description**: Tells readline library that the cursor is on a new line (often used after a signal).
+### Overview
 
-#### `rl_replace_line`
-- **Description**: Replaces the current line in the editing buffer with new text.
+The **Readline library** provides functionalities for command-line editing and history management. It's widely used in interactive programs, particularly shells, to allow users to comfortably edit commands, manage command histories, and enhance usability.
 
-#### `rl_redisplay`
-- **Description**: Forces readline to redisplay the current buffer.
+### Functions Explained
+
+#### `readline`
+
+- **Header**: `#include <readline/readline.h>`
+- **Description**: Reads user input from standard input with enhanced editing capabilities.
+- **Behavior**:
+  - Supports line editing (e.g., cursor movement, deletion).
+  - Returns a dynamically allocated string, which must be manually freed by the caller.
+  - Returns `NULL` upon reaching EOF (`Ctrl+D`).
+
+**Proper Usage Example:**
+```c
+#include <readline/readline.h>
+#include <stdlib.h>
+
+int main(void) {
+    char *input = readline("minishell> ");
+    if (!input) {
+        printf("EOF received, exiting.\n");
+        exit(EXIT_SUCCESS);
+    }
+    printf("You entered: %s\n", input);
+    free(input);
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Forgetting to free memory allocated by `readline`.
+- Not checking for NULL return value (EOF handling).
+
+---
 
 #### `add_history`
-- **Description**: Adds a string to the in-memory history.
-- **Detailed Explanation**:
-  - The string becomes part of the history; can be accessed by up/down arrows in subsequent `readline` calls.
 
-**Proper Usage**:
+- **Header**: `#include <readline/history.h>`
+- **Description**: Adds a line to the history list, enabling retrieval via arrow keys in subsequent calls.
+
+**Proper Usage Example:**
+```c
+#include <readline/readline.h>
+#include <readline/history.h>
+#include <stdlib.h>
+
+int main(void) {
+    char *input = readline("minishell> ");
+    if (input && *input) {
+        add_history(input);
+    }
+    free(input);
+    return 0;
+}
+```
+
+**Common Mistakes:**
+- Adding empty or null strings to history.
+
+---
+
+#### `rl_clear_history`
+
+- **Header**: `#include <readline/history.h>`
+- **Description**: Clears all entries in the history, typically used when restarting or resetting command input history.
+
+**Proper Usage Example:**
+```c
+#include <readline/history.h>
+
+void clear_shell_history(void) {
+    rl_clear_history();
+    printf("History cleared successfully.\n");
+}
+```
+
+---
+
+#### `rl_on_new_line`
+
+- **Header**: `#include <readline/readline.h>`
+- **Description**: Informs readline library that the cursor has moved to a new line, frequently used after signal handling to reposition the cursor correctly.
+
+**Proper Usage Example (Signal Handling):**
+```c
+#include <readline/readline.h>
+#include <signal.h>
+
+void sigint_handler(int sig) {
+    rl_on_new_line();
+    rl_replace_line("", 0);
+    rl_redisplay();
+}
+
+int main(void) {
+    signal(SIGINT, sigint_handler);
+    char *input;
+    while ((input = readline("minishell> "))) {
+        free(input);
+    }
+    return 0;
+}
+```
+
+---
+
+#### `rl_replace_line`
+
+- **Header**: `#include <readline/readline.h>`
+- **Description**: Replaces the content of the readline buffer with the given string.
+
+**Proper Usage Example:**
+```c
+#include <readline/readline.h>
+
+void replace_current_line(const char *new_line) {
+    rl_replace_line(new_line, 0);
+    rl_redisplay();
+}
+```
+
+---
+
+#### `rl_redisplay`
+
+- **Header**: `#include <readline/readline.h>`
+- **Description**: Forces readline to refresh and redisplay the current editing buffer. Essential after modifications to the buffer or cursor position.
+
+**Proper Usage Example:**
+```c
+#include <readline/readline.h>
+
+void refresh_display(void) {
+    rl_redisplay();
+}
+```
+
+---
+
+**General Best Practices**:
+- Always handle memory allocation carefully (especially strings returned by `readline`).
+- Properly manage history to enhance user experience.
+- Implement thorough signal handling to gracefully manage interruptions and user actions.
+
+
 ```c
 char *input = readline("myshell> ");
 if (input) {
