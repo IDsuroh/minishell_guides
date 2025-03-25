@@ -22,7 +22,7 @@
    - [readline, rl_clear_history, rl_on_new_line, rl_replace_line, rl_redisplay, add_history](#readline-rl_clear_history-rl_on_new_line-rl_replace_line-rl_redisplay-add_history)
 5. [Signals (`signal.h`)](#signals-signalh)
    - [signal, sigaction, sigemptyset, sigaddset, kill](#signal-sigaction-sigemptyset-sigaddset-kill)
-6. [Process and File Control (`unistd.h`, `sys/types.h`, `sys/wait.h`, `fcntl.h`, `sys/stat.h`)](#process-and-file-control)
+6. [Process and File Control (`unistd.h`, `sys/types.h`, `sys/wait.h`, `fcntl.h`, `sys/stat.h`)](#process-management-functions-documentation)
    - [fork, wait, waitpid, wait3, wait4, execve](#fork-wait-waitpid-wait3-wait4-execve)
    - [write, access, open, read, close](#write-access-open-read-close)
    - [getcwd, chdir, stat, lstat, fstat, unlink](#getcwd-chdir-stat-lstat-fstat-unlink)
@@ -470,7 +470,10 @@ Handle return values and errors meticulously to ensure robust code.
 Use kill(pid, 0) cautiously for checking process existence or permissions.
 ---
 
-## Process and File Control
+
+# Process Management Functions Documentation
+
+This document describes various process management functions, including their headers, detailed behavior, proper usage examples, common mistakes, and a table comparing their features.
 
 These functions reside in various headers:
 - `unistd.h` (POSIX standard functions)
@@ -496,12 +499,6 @@ if (pid == 0) {
     perror("fork failed");
 }
 ```
-
-# Process Management Functions Documentation
-
-This document describes various process management functions, including their headers, detailed behavior, proper usage examples, common mistakes, and a table comparing their features.
-
----
 
 ## wait
 
