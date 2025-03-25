@@ -169,6 +169,8 @@ if (path) {
 
 The **Readline library** provides functionalities for command-line editing and history management. It's widely used in interactive programs, particularly shells, to allow users to comfortably edit commands, manage command histories, and enhance usability.
 
+### `readline, rl_clear_history, rl_on_new_line, rl_replace_line, rl_redisplay, add_history`
+
 ### Functions Explained
 
 #### `readline`
