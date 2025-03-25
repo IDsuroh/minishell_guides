@@ -163,29 +163,6 @@ if (path) {
 
 ---
 
-## Readline Functions
-
-### Overview
-
-These functions come from **`readline`** and **`history`** libraries. They provide command-line editing, history management, etc.
-
-### `readline, rl_clear_history, rl_on_new_line, rl_replace_line, rl_redisplay, add_history`
-
-#### `readline`
-- **Header**: `#include <readline/readline.h>`
-- **Description**: Reads a line from stdin with support for line editing.
-- **Detailed Explanation**:
-  - Provides user-friendly features like arrow key navigation, backspace, etc.
-  - Returns a **dynamically allocated** string, which should be freed by the caller.
-  - If EOF is reached, returns `NULL`.
-
-```c
-char *input = readline("myshell> ");
-if (input) {
-    // Use input
-}
-```
-
 ## Readline Functions (`readline/readline.h`, `readline/history.h`)
 
 ### Overview
